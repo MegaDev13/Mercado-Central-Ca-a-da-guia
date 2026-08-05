@@ -1,0 +1,138 @@
+Teste de importação em lote - copie e cole no Livro de Vendas → Importar Fichas
+
+══════════════════════════════
+📜 ORDEM DE AQUISIÇÃO
+══════════════════════════════
+
+✦ Comprador:
+➤ Lord Aryon Lorrengreen
+
+✦ Mercadoria:
+➤ Cordas
+
+✦ Quantidade:
+➤ 6 unidades
+
+✦ Valor da Transação:
+➤ 300 moedas de ouro
+
+✦ Método de Entrega:
+➤ Domiciliar
+
+✦ Reino de Destino:
+➤ Portões da Muralha
+
+✦ Mercador Responsável:
+➤ Bran Crowley
+
+══════════════════════════════
+📜 ORDEM DE AQUISIÇÃO
+══════════════════════════════
+
+✦ Comprador:
+➤ Lady Stark Mellisandra
+
+✦ Mercadoria:
+➤ Espadas de Aço Valiriano
+
+✦ Quantidade:
+➤ 2 unidades
+
+✦ Valor da Transação:
+➤ 1200 gold
+
+✦ Método de Entrega:
+➤ Retirada
+
+✦ Reino de Destino:
+➤ Winterfell
+
+✦ Mercador Responsável:
+➤ Eddard Starkson
+
+══════════════════════════════
+📜 ORDEM DE AQUISIÇÃO
+══════════════════════════════
+
+✦ Comprador:
+➤ Lannister Tywin - Aliado
+
+✦ Mercadoria:
+➤ Barris de Vinho Dourado
+
+✦ Quantidade:
+➤ 20 unidades
+
+✦ Valor da Transação:
+➤ 80 ouro
+
+✦ Método de Entrega:
+➤ Retirada
+
+✦ Reino de Destino:
+➤ Rochedo Casterly
+
+✦ Mercador Responsável:
+➤ Bran Crowley
+
+══════════════════════════════
+📜 ORDEM DE AQUISIÇÃO
+══════════════════════════════
+
+✦ Comprador:
+➤ Gardener Margaery Thorn
+
+✦ Mercadoria:
+➤ Sementes Raras
+
+✦ Quantidade:
+➤ 100 unidades
+
+✦ Valor da Transação:
+➤ 250 moedas
+
+✦ Método de Entrega:
+➤ Domiciliar
+
+✦ Reino de Destino:
+➤ Jardim de Cima
+
+✦ Mercador Responsável:
+➤ Finn River
+
+══════════════════════════════
+📜 ORDEM DE AQUISIÇÃO
+══════════════════════════════
+
+✦ Comprador:
+➤ Mercador Anônimo do Porto
+
+✦ Mercadoria:
+➤ Peixe Salgado
+
+✦ Quantidade:
+➤ 50 unidades
+
+✦ Valor da Transação:
+➤ 90 G
+
+✦ Método de Entrega:
+➤ Domiciliar
+
+✦ Reino de Destino:
+➤ Porto Real
+
+✦ Mercador Responsável:
+➤ Davos Seaworth
+
+══════════════════════════════
+
+Exemplo histórico WhatsApp (também parseável):
+[19:23] Bran Crowley: 📜 ORDEM - Comprador: Lord Bolton - Mercadoria: Couro - Qtd 10 - Valor 150 ouro - Entrega Retirada - Destino: Forte do Pavor - Mercador: Bran Crowley
+[19:24] Eddard: Comprador Stark Robb - Mercadoria Pele de Lobo x5 Valor 600 ouro Entrega Domiciliar Destino Winterfell Mercador Eddard
+
+---
+Teste aliado com desconto:
+Comprador Gardener deve ter -10% automático
+Comprador Lannister -10%
+Comprador Stark -10%
