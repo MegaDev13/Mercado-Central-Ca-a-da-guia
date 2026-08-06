@@ -1,7 +1,8 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { Sale, Merchant, Buyer, Product, Destination, StockMovement } from '../types';
-import { localDB } from '../lib/storage';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import { Sale, Merchant, Buyer, Product, Destination, StockMovement, UserProfile } from '../types';
 import { normalizeName } from '../lib/normalize';
+import * as db from '../lib/db';
+import { useAuth } from './AuthContext';
 
 interface DataCtx {
   sales: Sale[];
@@ -10,23 +11,27 @@ interface DataCtx {
   products: Product[];
   destinations: Destination[];
   stockMovements: StockMovement[];
+  users: UserProfile[];
   pendingSales: Sale[];
   approvedSales: Sale[];
-  reload: ()=>void;
+  dataLoading: boolean;
+  syncError: string | null;
+  isRemote: boolean;
+  reload: ()=>Promise<void>;
   addSale: (s: Sale)=>void;
   approveSale: (id:string)=>void;
   rejectSale: (id:string)=>void;
   updateProductCost: (productId:string, cost:number)=>void;
   clearAll: ()=>void;
   resetBlank: ()=>void;
-  createMerchant: (name:string)=>Merchant;
+  createMerchant: (name:string)=>Promise<Merchant>;
   deleteMerchant: (id:string)=>void;
   linkMerchantToUser: (merchantId:string, userId:string)=>void;
-  // ESTOQUE
-  createProduct: (data: Partial<Product> & { name: string })=>Product;
+  createProduct: (data: Partial<Product> & { name: string })=>Promise<Product>;
   deleteProduct: (id:string)=>void;
-  updateProduct: (id:string, updates: Partial<Product>)=>void;
-  adjustStock: (productId:string, delta:number, reason:string, type?: StockMovement['type'], meta?: Partial<StockMovement>)=>Product;
+  updateProduct: (id:string, updates: Partial<Product>)=>Promise<void>;
+  adjustStock: (productId:string, delta:number, reason:string, type?: StockMovement['type'], meta?: Partial<StockMovement>)=>Promise<Product | undefined>;
+  migrateLocalToSupabase: ()=>Promise<db.MigrationSummary>;
   stockStats: {
     totalItems: number;
     totalUnits: number;
@@ -49,219 +54,212 @@ interface DataCtx {
 const DataContext = createContext<DataCtx>({} as any);
 
 export function DataProvider({children}:{children:React.ReactNode}) {
+  const { user } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [merchants, setMerchants] = useState<Merchant[]>([]);
   const [buyers, setBuyers] = useState<Buyer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [stockMovements, setStockMovements] = useState<StockMovement[]>([]);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const [dataLoading, setDataLoading] = useState(true);
 
-  const reload = ()=>{
-    localDB.cleanupInvalid();
-    setSales(localDB.getSales());
-    setMerchants(localDB.getMerchants());
-    setBuyers(localDB.getBuyers());
-    setProducts(localDB.getProducts());
-    setDestinations(localDB.getDestinations());
-    setStockMovements(localDB.getStockMovements());
-  };
+  // Fila serial: evita corridas ao importar várias fichas de uma vez
+  const queue = useRef<Promise<any>>(Promise.resolve());
+  const enqueue = useCallback(<T,>(fn: ()=>Promise<T>): Promise<T> => {
+    const next = queue.current.then(fn, fn);
+    queue.current = next.catch(()=>{});
+    return next;
+  },[]);
 
-  useEffect(()=>{ reload(); },[]);
+  const reload = useCallback(async ()=>{
+    try {
+      const data = await db.fetchAll();
+      setSales(data.sales);
+      setMerchants(data.merchants);
+      setBuyers(data.buyers);
+      setProducts(data.products);
+      setDestinations(data.destinations);
+      setStockMovements(data.stockMovements);
+      setUsers(data.users);
+      setSyncError(data.error);
+    } catch(e:any) {
+      console.error('[DataContext] Falha ao carregar dados:', e);
+      setSyncError(e?.message || 'Falha ao carregar dados');
+    } finally {
+      setDataLoading(false);
+    }
+  },[]);
 
-  const addSale = (s: Sale)=>{
-    const m = localDB.ensureMerchant(s.merchant_name);
-    const b = localDB.ensureBuyer(s.buyer_name, s.is_ally, s.ally_house as any);
-    const p = localDB.ensureProduct(s.product_name);
-    const d = localDB.ensureDestination(s.destination_name);
+  useEffect(()=>{ reload(); },[reload, user?.id]);
 
-    const enriched: Sale = {
+  // Executa mutação capturando erro (não quebra a tela); erros aparecem no banner de sincronização
+  const run = useCallback((fn: ()=>Promise<void>)=>{
+    void enqueue(async()=>{
+      try { await fn(); } catch(e:any) {
+        console.error('[DataContext] Erro de sincronização:', e);
+        setSyncError(e?.message || 'Erro de sincronização');
+      }
+    });
+  },[enqueue]);
+
+  const addSale = (s: Sale)=> run(async()=>{
+    const m = await db.ensureMerchant(s.merchant_name);
+    const b = await db.ensureBuyer(s.buyer_name, s.is_ally, s.ally_house as any);
+    const p = await db.ensureProduct(s.product_name);
+    const d = await db.ensureDestination(s.destination_name);
+    await db.insertSale({
       ...s,
-      id: s.id || `sale_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
       merchant_id: m.id,
       buyer_id: b.id,
       product_id: p.id,
       destination_id: d.id,
-      created_at: new Date().toISOString(),
-    };
+      created_at: s.created_at || new Date().toISOString(),
+    });
+    await reload();
+  });
 
-    const allSales = [...localDB.getSales(), enriched];
-    localDB.saveSales(allSales);
-    setSales(allSales);
-    reload();
-  };
+  const approveSale = (id:string)=> run(async()=>{
+    const sale = sales.find(x=>x.id===id);
+    if (!sale || sale.status==='aprovada') return;
 
-  const approveSale = (id:string)=>{
-    const all = localDB.getSales();
-    const sale = all.find(s=>s.id===id);
-    if (!sale) return;
-    sale.status = 'aprovada';
-    localDB.saveSales(all);
-
-    // MERCHANT AGG
-    const merchants = localDB.getMerchants();
+    // MERCADOR (agregados)
     let m = merchants.find(mm=> mm.id===sale.merchant_id || normalizeName(mm.name)===normalizeName(sale.merchant_name));
-    if (!m) m = localDB.ensureMerchant(sale.merchant_name);
-    const mIdx = merchants.findIndex(x=>x.id===m!.id);
-    if (mIdx>=0) {
-      merchants[mIdx].total_sales += 1;
-      merchants[mIdx].total_base += sale.base_value;
-      merchants[mIdx].total_commission += sale.tax_breakdown.merchant_commission;
-      merchants[mIdx].last_sale_at = new Date().toISOString();
-    }
-    localDB.saveMerchants(merchants);
+    if (!m) m = await db.ensureMerchant(sale.merchant_name);
+    await db.saveMerchantAgg({
+      ...m,
+      total_sales: (m.total_sales||0) + 1,
+      total_base: (m.total_base||0) + sale.base_value,
+      total_commission: (m.total_commission||0) + sale.tax_breakdown.merchant_commission,
+      last_sale_at: new Date().toISOString(),
+    });
 
-    // BUYER
-    const buyers = localDB.getBuyers();
-    const bIdx = buyers.findIndex(b=>b.id===sale.buyer_id);
-    if (bIdx>=0) {
-      buyers[bIdx].total_purchases += 1;
-      buyers[bIdx].total_spent_base += sale.base_value;
-      buyers[bIdx].total_spent_final += sale.final_value;
-      buyers[bIdx].last_seen = new Date().toISOString();
-    }
-    localDB.saveBuyers(buyers);
+    // COMPRADOR
+    const b = buyers.find(bb=> bb.id===sale.buyer_id || normalizeName(bb.name)===normalizeName(sale.buyer_name));
+    if (b) await db.saveBuyerAgg({
+      ...b,
+      total_purchases: (b.total_purchases||0) + 1,
+      total_spent_base: (b.total_spent_base||0) + sale.base_value,
+      total_spent_final: (b.total_spent_final||0) + sale.final_value,
+      last_seen: new Date().toISOString(),
+    });
 
-    // PRODUCT + ESTOQUE SAÍDA
-    const products = localDB.getProducts();
-    const pIdx = products.findIndex(p=>p.id===sale.product_id || normalizeName(p.name)===normalizeName(sale.product_name));
-    if (pIdx>=0) {
-      products[pIdx].total_qty += sale.quantity;
-      products[pIdx].total_revenue_base += sale.base_value;
-      products[pIdx].total_revenue_final += sale.final_value;
-      const totalQty = products[pIdx].total_qty || sale.quantity;
-      products[pIdx].avg_price = products[pIdx].total_revenue_base / totalQty;
-      if (products[pIdx].cost_price) {
-        products[pIdx].total_profit = products[pIdx].total_revenue_final - (products[pIdx].cost_price! * products[pIdx].total_qty);
-      }
-      // ESTOQUE: baixa automática
-      const prev = products[pIdx].stock_quantity ?? 0;
-      const next = prev - sale.quantity;
-      products[pIdx].stock_quantity = next;
-      localDB.saveProducts(products);
-      // movimento
-      localDB.addStockMovement({
-        product_id: products[pIdx].id,
-        product_name: products[pIdx].name,
-        type: 'saida',
-        quantity: sale.quantity,
-        previous_stock: prev,
-        new_stock: next,
-        reason: `Venda ${sale.ficha_number || sale.id} - ${sale.buyer_name}`,
-        related_sale_id: sale.id,
-        related_sale_ficha: sale.ficha_number,
-      } as any);
-    } else {
-      // se produto não achado, tenta ensure e depois baixa
-      const p = localDB.ensureProduct(sale.product_name);
-      const allProds = localDB.getProducts();
-      const idx = allProds.findIndex(x=>x.id===p.id);
-      if (idx>=0) {
-        const prev = allProds[idx].stock_quantity ?? 0;
-        const next = prev - sale.quantity;
-        allProds[idx].stock_quantity = next;
-        allProds[idx].total_qty += sale.quantity;
-        allProds[idx].total_revenue_base += sale.base_value;
-        allProds[idx].total_revenue_final += sale.final_value;
-        localDB.saveProducts(allProds);
-        localDB.addStockMovement({
-          product_id: allProds[idx].id,
-          product_name: allProds[idx].name,
-          type: 'saida',
-          quantity: sale.quantity,
-          previous_stock: prev,
-          new_stock: next,
-          reason: `Venda ${sale.ficha_number} - ${sale.buyer_name}`,
-          related_sale_id: sale.id,
-        } as any);
-      }
-    }
+    // PRODUTO + BAIXA DE ESTOQUE
+    let p = products.find(pp=> pp.id===sale.product_id || normalizeName(pp.name)===normalizeName(sale.product_name));
+    if (!p) p = await db.ensureProduct(sale.product_name);
+    const totalQty = (p.total_qty||0) + sale.quantity;
+    const revenueBase = (p.total_revenue_base||0) + sale.base_value;
+    const revenueFinal = (p.total_revenue_final||0) + sale.final_value;
+    const prevStock = p.stock_quantity ?? 0;
+    const nextStock = prevStock - sale.quantity;
+    await db.saveProductAgg({
+      ...p,
+      total_qty: totalQty,
+      total_revenue_base: revenueBase,
+      total_revenue_final: revenueFinal,
+      avg_price: totalQty>0 ? revenueBase/totalQty : 0,
+      stock_quantity: nextStock,
+      total_profit: p.cost_price ? revenueFinal - (p.cost_price * totalQty) : p.total_profit,
+    });
+    await db.addStockMovement({
+      product_id: p.id,
+      product_name: p.name,
+      type: 'saida',
+      quantity: sale.quantity,
+      previous_stock: prevStock,
+      new_stock: nextStock,
+      reason: `Venda ${sale.ficha_number || sale.id} - ${sale.buyer_name}`,
+      related_sale_id: sale.id,
+      related_sale_ficha: sale.ficha_number,
+      created_by: user?.id,
+      created_by_name: user?.merchant_name,
+    } as any);
 
-    const dests = localDB.getDestinations();
-    const dIdx = dests.findIndex(d=>d.id===sale.destination_id);
-    if (dIdx>=0) dests[dIdx].total_deliveries += 1;
-    localDB.saveDestinations(dests);
+    // DESTINO
+    const d = destinations.find(dd=> dd.id===sale.destination_id || normalizeName(dd.name)===normalizeName(sale.destination_name));
+    if (d) await db.saveDestinationAgg({ ...d, total_deliveries: (d.total_deliveries||0) + 1 });
 
-    reload();
-  };
+    await db.updateSaleStatus(sale.id, 'aprovada', user?.id);
+    await reload();
+  });
 
-  const rejectSale = (id:string)=>{
-    const all = localDB.getSales();
-    const sale = all.find(s=>s.id===id);
+  const rejectSale = (id:string)=> run(async()=>{
+    const sale = sales.find(x=>x.id===id);
     if (!sale) return;
-    sale.status = 'rejeitada';
-    localDB.saveSales(all);
-    reload();
-  };
+    await db.updateSaleStatus(id, 'rejeitada', user?.id);
+    await reload();
+  });
 
-  const updateProductCost = (productId:string, cost:number)=>{
-    const prods = localDB.getProducts();
-    const idx = prods.findIndex(p=>p.id===productId);
-    if (idx>=0) {
-      prods[idx].cost_price = cost;
-      if (prods[idx].total_qty>0) {
-        prods[idx].total_profit = prods[idx].total_revenue_final - (cost * prods[idx].total_qty);
-      }
-      localDB.saveProducts(prods);
-      reload();
-    }
-  };
+  const updateProductCost = (productId:string, cost:number)=> run(async()=>{
+    const p = products.find(x=>x.id===productId);
+    if (!p) return;
+    const total_profit = (p.total_qty||0) > 0 ? (p.total_revenue_final||0) - (cost * (p.total_qty||0)) : p.total_profit;
+    await db.saveProductAgg({ ...p, cost_price: cost, total_profit });
+    await reload();
+  });
 
   const clearAll = ()=>{
     if (!confirm('Apagar TODOS os registros mercantis? Esta ação não pode ser desfeita.')) return;
-    localStorage.removeItem('rpg_sales');
-    localStorage.removeItem('rpg_merchants');
-    localStorage.removeItem('rpg_buyers');
-    localStorage.removeItem('rpg_products');
-    localStorage.removeItem('rpg_destinations');
-    localStorage.removeItem('rpg_stock_movements');
-    reload();
+    run(async()=>{ await db.clearAllData(); await reload(); });
   };
 
   const resetBlank = ()=>{
     if (!confirm('Deixar tudo em BRANCO? Isso apagará vendas, mercadores, compradores, produtos, destinos e movimentações de estoque. Usuários de login serão mantidos. Ideal para entrega inicial.')) return;
-    localDB.resetBlank();
-    reload();
-    alert('✅ Sistema zerado! Agora está em branco. Mercadores podem se cadastrar quando forem subir fichas. Admin pode cadastrar vendedores em Mercadores e itens em Estoque.');
+    run(async()=>{
+      await db.clearAllData();
+      await reload();
+      alert('✅ Sistema zerado! Agora está em branco. Mercadores podem se cadastrar quando forem subir fichas. Admin pode cadastrar vendedores em Mercadores e itens em Estoque.');
+    });
   };
 
-  const createMerchant = (name:string)=>{
-    const m = localDB.createMerchant(name);
-    reload();
+  const createMerchant = async (name:string)=>{
+    const m = await enqueue(()=> db.createMerchant(name));
+    await reload();
     return m;
   };
 
   const deleteMerchant = (id:string)=>{
     if (!confirm('Excluir vendedor? Vendas antigas manterão o nome, mas o vendedor sairá da lista.')) return;
-    localDB.deleteMerchant(id);
-    reload();
+    run(async()=>{ await db.deleteMerchant(id); await reload(); });
   };
 
-  const linkMerchantToUser = (merchantId:string, userId:string)=>{
-    localDB.linkMerchantToUser(merchantId, userId);
-    reload();
-  };
+  const linkMerchantToUser = (merchantId:string, userId:string)=> run(async()=>{
+    await db.linkMerchantToUser(merchantId, userId);
+    await reload();
+  });
 
-  const createProduct = (data: Partial<Product> & { name: string })=>{
-    const p = localDB.createProduct(data);
-    reload();
+  const createProduct = async (data: Partial<Product> & { name: string })=>{
+    const p = await enqueue(()=> db.createProduct(data));
+    await reload();
     return p;
   };
 
   const deleteProduct = (id:string)=>{
     if (!confirm('Excluir item do estoque? Histórico de movimentações será mantido, mas item sai da lista.')) return;
-    localDB.deleteProduct(id);
-    reload();
+    run(async()=>{ await db.deleteProduct(id); await reload(); });
   };
 
-  const updateProduct = (id:string, updates: Partial<Product>)=>{
-    localDB.updateProduct(id, updates);
-    reload();
+  const updateProduct = async (id:string, updates: Partial<Product>)=>{
+    await enqueue(()=> db.updateProductInfo(id, updates));
+    await reload();
   };
 
-  const adjustStock = (productId:string, delta:number, reason:string, type: StockMovement['type']='ajuste', meta?: Partial<StockMovement>)=>{
-    const p = localDB.adjustStock(productId, delta, reason, type, meta);
-    reload();
-    return p;
+  const adjustStock = async (productId:string, delta:number, reason:string, type: StockMovement['type']='ajuste', meta?: Partial<StockMovement>)=>{
+    try {
+      const p = await enqueue(()=> db.adjustStock(productId, delta, reason, type, meta));
+      await reload();
+      return p;
+    } catch(e:any) {
+      setSyncError(e?.message || 'Erro de sincronização');
+      throw e;
+    }
+  };
+
+  const migrateLocalToSupabase = async ()=>{
+    const result = await db.migrateLocalToSupabase();
+    await reload();
+    return result;
   };
 
   const pendingSales = useMemo(()=> sales.filter(s=>s.status==='pendente'),[sales]);
@@ -290,7 +288,7 @@ export function DataProvider({children}:{children:React.ReactNode}) {
     return { totalItems, totalUnits, totalValue, lowStock, outOfStock };
   },[products]);
 
-  return <DataContext.Provider value={{sales, merchants, buyers, products, destinations, stockMovements, pendingSales, approvedSales, reload, addSale, approveSale, rejectSale, updateProductCost, clearAll, resetBlank, createMerchant, deleteMerchant, linkMerchantToUser, createProduct, deleteProduct, updateProduct, adjustStock, stockStats, stats}}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={{sales, merchants, buyers, products, destinations, stockMovements, users, pendingSales, approvedSales, dataLoading, syncError, isRemote: db.isRemote, reload, addSale, approveSale, rejectSale, updateProductCost, clearAll, resetBlank, createMerchant, deleteMerchant, linkMerchantToUser, createProduct, deleteProduct, updateProduct, adjustStock, migrateLocalToSupabase, stockStats, stats}}>{children}</DataContext.Provider>;
 }
 
 export const useData = ()=> useContext(DataContext);

@@ -46,10 +46,10 @@ export function NewFichaPage() {
     ally_house: allyInfo.house,
   });
 
-  const handleCreateMerchantInline = ()=>{
+  const handleCreateMerchantInline = async ()=>{
     if (!newMerchantName.trim()) return;
     try {
-      const m = createMerchant(newMerchantName.trim());
+      const m = await createMerchant(newMerchantName.trim());
       setForm({...form, merchant_name: m.name});
       setNewMerchantName('');
       setShowNewMerchant(false);

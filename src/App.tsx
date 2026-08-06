@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
-import { DataProvider } from './contexts/DataContext';
+import { DataProvider, useData } from './contexts/DataContext';
 import { LoginPage } from './pages/Login';
 import { DashboardPage } from './pages/Dashboard';
 import { SalesPage } from './pages/Sales';
@@ -20,6 +20,7 @@ import { MobileNav } from './components/layout/MobileNav';
 
 function MainApp() {
   const { user, loading } = useAuth();
+  const { syncError } = useData();
   const [current, setCurrent] = useState('dashboard');
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
@@ -93,6 +94,13 @@ function MainApp() {
           <div className="font-display font-bold tracking-widest text-sm">RAVENPORT • {current.toUpperCase()}</div>
           <div className="w-9 h-9 rounded-full bg-[var(--bg-card)] border border-[var(--border)] flex items-center justify-center text-xs font-bold">{user.merchant_name?.[0]}</div>
         </div>
+
+        {syncError && (
+          <div className="mx-4 mt-3 lg:mx-8 p-3 rounded-lg border border-red-900/60 bg-red-950/40 text-red-200 text-xs flex items-start gap-2">
+            <span className="shrink-0">⚠️</span>
+            <span><b>Falha ao sincronizar com o banco de dados:</b> {syncError} — os dados podem estar temporariamente indisponíveis. Veja Configurações → Sincronização.</span>
+          </div>
+        )}
 
         <main className="flex-1 pb-[80px] lg:pb-0">
           {renderPage()}

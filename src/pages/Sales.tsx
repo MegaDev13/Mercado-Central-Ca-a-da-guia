@@ -33,10 +33,10 @@ export function SalesPage() {
     return list.sort((a,b)=> new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
   },[sales, query, filterDelivery, filterStatus, isAdmin, user]);
 
-  const handleCreateMerchantInline = ()=>{
+  const handleCreateMerchantInline = async ()=>{
     if (!newMerchantName.trim()) return;
     try {
-      const m = createMerchant(newMerchantName.trim());
+      const m = await createMerchant(newMerchantName.trim());
       setAdminMerchantOverride(m.name);
       setNewMerchantName('');
       setShowNewMerchant(false);
