@@ -128,6 +128,7 @@ export interface Sale {
   approved_by?: string;
   created_at: string;
   date: string;
+  date_text?: string; // nome da coluna no Supabase (mapeado para `date` no app)
 }
 
 export interface ImportResult {

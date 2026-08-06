@@ -4,10 +4,9 @@ import { Input, Label } from '../components/ui/input';
 import { Button } from '../components/ui/button';
 import { Plus, Trash2, User, Link2, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { localDB } from '../lib/storage';
 
 export function MerchantsPage() {
-  const { merchants, sales, createMerchant, deleteMerchant, linkMerchantToUser, reload } = useData();
+  const { merchants, sales, users, createMerchant, deleteMerchant, linkMerchantToUser } = useData();
   const { isAdmin } = useAuth();
   const [selected, setSelected] = useState<string | null>(null);
   const [newName, setNewName] = useState('');
@@ -15,14 +14,13 @@ export function MerchantsPage() {
 
   const selMerchant = merchants.find(m=>m.id===selected);
   const merchantSales = sales.filter(s=> s.merchant_id===selected || s.merchant_name===selMerchant?.name).filter(s=>s.status==='aprovada');
-  const users = localDB.getUsers();
 
   const filtered = merchants.filter(m=> m.name.toLowerCase().includes(query.toLowerCase())).sort((a,b)=>b.total_base-a.total_base);
 
-  const handleCreate = ()=>{
+  const handleCreate = async ()=>{
     if (!newName.trim()) return alert('Informe nome');
     try {
-      createMerchant(newName.trim());
+      await createMerchant(newName.trim());
       setNewName('');
     } catch(e:any){ alert(e.message); }
   };

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile } from '../types';
 import { localDB } from '../lib/storage';
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import * as db from '../lib/db';
 
 interface AuthCtx {
   user: UserProfile | null;
@@ -21,6 +22,17 @@ const AuthContext = createContext<AuthCtx>({
   isAdmin: false,
 });
 
+// Garante que o mercador exista na lista de mercadores (Supabase ou local).
+// É isso que faz o mercador REGISTRADO aparecer na página Mercadores e na Nova Ficha.
+async function ensureMerchantForProfile(profile: UserProfile | null) {
+  if (!profile?.merchant_name) return;
+  try {
+    await db.ensureMerchant(profile.merchant_name, profile.id, profile.email);
+  } catch (e) {
+    console.error('[Auth] Falha ao vincular mercador ao perfil:', e);
+  }
+}
+
 export function AuthProvider({children}:{children:React.ReactNode}) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -30,7 +42,10 @@ export function AuthProvider({children}:{children:React.ReactNode}) {
       supabase.auth.getSession().then(async({data: sessData}:any)=>{
         if (sessData.session?.user) {
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', sessData.session.user.id).single();
-          if (profile) setUser(profile as any);
+          if (profile) {
+            setUser(profile as any);
+            await ensureMerchantForProfile(profile as any);
+          }
         }
         setLoading(false);
       });
@@ -55,6 +70,7 @@ export function AuthProvider({children}:{children:React.ReactNode}) {
       const { data: profile, error: perr } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
       if (perr) throw perr;
       setUser(profile as any);
+      await ensureMerchantForProfile(profile as any);
     } else {
       const users = localDB.getUsers();
       const found = users.find(u=> u.email.toLowerCase()===email.toLowerCase());
@@ -74,6 +90,9 @@ export function AuthProvider({children}:{children:React.ReactNode}) {
         const { error: perr } = await supabase.from('profiles').insert(profile);
         if (perr) throw perr;
         setUser(profile as any);
+        // CRIA o mercador na lista (antes isto só acontecia no modo local,
+        // por isso mercadores registrados nunca apareciam com Supabase ativo)
+        await ensureMerchantForProfile(profile as any);
       }
     } else {
       const users = localDB.getUsers();

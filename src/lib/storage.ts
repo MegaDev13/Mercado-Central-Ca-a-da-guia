@@ -23,7 +23,7 @@ function setJSON(key: string, val: any) {
   localStorage.setItem(key, JSON.stringify(val));
 }
 
-function isInvalidName(name: string): boolean {
+export function isInvalidName(name: string): boolean {
   if (!name) return true;
   const n = name.trim().toLowerCase();
   if (n.length < 2) return true;
@@ -35,7 +35,7 @@ function isInvalidName(name: string): boolean {
   return false;
 }
 
-function sanitizeName(name: string): string {
+export function sanitizeName(name: string): string {
   if (!name) return 'Não informado';
   let s = name.trim();
   s = s.replace(/^ia,\s*/i, '').replace(/^ia\s+/i, '').trim();

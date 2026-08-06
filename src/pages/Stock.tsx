@@ -17,10 +17,10 @@ export function StockPage() {
 
   const filtered = products.filter(p=> p.name.toLowerCase().includes(query.toLowerCase()) || (p.category||'').toLowerCase().includes(query.toLowerCase()));
 
-  const handleCreate = ()=>{
+  const handleCreate = async ()=>{
     if (!form.name) return alert('Informe nome do item');
     try {
-      createProduct({ name: form.name, category: form.category, stock_quantity: Number(form.stock_quantity), min_stock: Number(form.min_stock), cost_price: Number(form.cost_price), supplier: form.supplier, location: form.location });
+      await createProduct({ name: form.name, category: form.category, stock_quantity: Number(form.stock_quantity), min_stock: Number(form.min_stock), cost_price: Number(form.cost_price), supplier: form.supplier, location: form.location });
       setForm({ name:'', category:'Geral', stock_quantity:0, min_stock:5, cost_price:0, supplier:'', location:'' });
       setShowCreate(false);
     } catch(e:any){ alert(e.message); }
@@ -31,13 +31,15 @@ export function StockPage() {
     setEditForm({ name: p.name, category: p.category, stock_quantity: p.stock_quantity, min_stock: p.min_stock, cost_price: p.cost_price, supplier: p.supplier, location: p.location });
   };
 
-  const saveEdit = ()=>{
+  const saveEdit = async ()=>{
     if (!editingId) return;
-    updateProduct(editingId, { name: editForm.name, category: editForm.category, stock_quantity: Number(editForm.stock_quantity), min_stock: Number(editForm.min_stock), cost_price: Number(editForm.cost_price), supplier: editForm.supplier, location: editForm.location });
-    setEditingId(null);
+    try {
+      await updateProduct(editingId, { name: editForm.name, category: editForm.category, stock_quantity: Number(editForm.stock_quantity), min_stock: Number(editForm.min_stock), cost_price: Number(editForm.cost_price), supplier: editForm.supplier, location: editForm.location });
+      setEditingId(null);
+    } catch(e:any){ alert(e.message); }
   };
 
-  const handleMovement = ()=>{
+  const handleMovement = async ()=>{
     if (!movementForm.productId) return alert('Selecione produto');
     const qty = Number(movementForm.quantity);
     if (!qty || qty<=0) return alert('Quantidade inválida');
@@ -46,7 +48,7 @@ export function StockPage() {
     if (type==='saida' || type==='perda') delta = -Math.abs(qty);
     else delta = Math.abs(qty);
     try {
-      adjustStock(movementForm.productId, delta, movementForm.reason || (type==='entrada' ? 'Entrada manual' : 'Saída manual'), type, { cost_at_time: movementForm.cost ? Number(movementForm.cost) : undefined, created_by: user?.id, created_by_name: user?.merchant_name });
+      await adjustStock(movementForm.productId, delta, movementForm.reason || (type==='entrada' ? 'Entrada manual' : 'Saída manual'), type, { cost_at_time: movementForm.cost ? Number(movementForm.cost) : undefined, created_by: user?.id, created_by_name: user?.merchant_name });
       setMovementForm({ productId:'', type:'entrada', quantity:1, reason:'', cost:'' });
     } catch(e:any){ alert(e.message); }
   };
