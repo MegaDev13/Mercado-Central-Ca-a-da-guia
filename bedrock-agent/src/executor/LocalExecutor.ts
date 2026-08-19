@@ -3,12 +3,16 @@ import type { IMinecraftClient } from "../client/BedrockClient.ts";
 import type { AgentConfig } from "../shared/config.ts";
 import type { Logger } from "../shared/logger.ts";
 import type {
+  ActionItem,
   AgentStatus,
   Blueprint,
+  ControlMode,
   DisconnectReason,
   EntitySnapshot,
   MissionState,
+  SupervisorAlert,
   UserMessage,
+  Vec3,
 } from "../shared/types.ts";
 import { PRIORITY } from "../shared/types.ts";
 import type { AuthorizedTool } from "../shared/messages.ts";
@@ -45,6 +49,7 @@ import {
   ProtocolResourceManagement,
   ProtocolToolSelection,
 } from "./protocols/work.ts";
+import { ProtocolPosition } from "./protocols/position.ts";
 
 export interface ExecutorHooks {
   onState?: (state: MissionState, messages: UserMessage[]) => void;
@@ -65,6 +70,11 @@ export class LocalExecutor {
   awaitingUserContinue = false;
   tickIndex = 0;
   running = false;
+  userOverride = false;
+  controlMode: ControlMode = "agent";
+  lastPath: Vec3[] = [];
+  actions: ActionItem[] = [];
+  alerts: SupervisorAlert[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
   private disconnecting = false;
 
@@ -81,6 +91,7 @@ export class LocalExecutor {
       new ProtocolEntityDetection(),
       new ProtocolDayNight(),
       new ProtocolNightExit(),
+      new ProtocolPosition(),
       new ProtocolSafeWait(),
       new ProtocolConnection(),
       new ProtocolReconnection(),
@@ -138,9 +149,12 @@ export class LocalExecutor {
       awaitingResourceConfirm: this.awaitingResourceConfirm,
       awaitingUserContinue: this.awaitingUserContinue,
       tickIndex: this.tickIndex,
+      userOverride: this.userOverride,
+      lastPath: this.lastPath,
       setStatus: (status, extra) => this.setStatus(status, extra),
       save: () => this.persist(),
       pushMessage: (msg) => this.pushMessage(msg),
+      pushAction: (name, detail) => this.pushAction(name, detail),
       requestDisconnect: (reason, message) => this.performDisconnect(reason, message),
     };
   }
@@ -162,6 +176,40 @@ export class LocalExecutor {
     const full: UserMessage = { ...msg, id: randomUUID(), createdAt: new Date().toISOString() };
     this.userMessages = [full, ...this.userMessages].slice(0, 50);
     this.hooks.onState?.(this.mission, this.userMessages);
+  }
+
+  pushAction(name: string, detail?: string): void {
+    this.actions = [{ id: randomUUID(), name, detail, at: new Date().toISOString() }, ...this.actions].slice(0, 40);
+  }
+
+  pushAlert(alert: Omit<SupervisorAlert, "id" | "createdAt">): void {
+    this.alerts = [{ ...alert, id: randomUUID(), createdAt: new Date().toISOString() }, ...this.alerts].slice(0, 20);
+  }
+
+  assumeControl(): void {
+    this.userOverride = true;
+    this.controlMode = "manual";
+    if (this.mission.status === "BUILDING") this.setStatus("PAUSED");
+    this.pushMessage({ level: "warning", title: "USER_OVERRIDE", body: "Usuário assumiu o controle. Ações automáticas suspensas." });
+    this.log.info("protocol", "user override on");
+  }
+
+  returnControl(): void {
+    this.userOverride = false;
+    this.controlMode = "agent";
+    this.client.resyncFromServer();
+    this.lastPath = [];
+    if (this.blueprint && this.client.connected && this.mission.status === "PAUSED") {
+      this.setStatus("BUILDING");
+    }
+    this.pushMessage({ level: "info", title: "Controle devolvido", body: "Estado do mundo recalculado. Agente retomando." });
+    this.log.info("protocol", "user override off — world state refreshed");
+  }
+
+  async emergencyDisconnect(): Promise<void> {
+    this.lastPath = [];
+    this.actions = [];
+    await this.performDisconnect("EMERGENCY", "EMERGENCY DISCONNECT — fila cancelada, estado mínimo salvo.");
   }
 
   acceptPlan(missionId: string, name: string, blueprint: Blueprint): void {
@@ -314,6 +362,16 @@ export class LocalExecutor {
       .filter((p) => p.wantsControl(ctx))
       .sort((a, b) => a.priority - b.priority);
 
+    if (this.userOverride || this.mission.status === "PAUSED") {
+      const safety = active.filter((p) => p.priority < PRIORITY.BUILDING);
+      if (safety[0]) {
+        const action = await safety[0].tick(ctx);
+        await this.apply(action);
+      }
+      this.hooks.onState?.(this.mission, this.userMessages);
+      return;
+    }
+
     const controller = active[0];
     if (controller && controller.priority < PRIORITY.BUILDING && this.mission.status === "BUILDING") {
       this.log.warn("protocol", "higher priority protocol interrupting build", {
@@ -397,6 +455,19 @@ export class LocalExecutor {
         body: message,
         action: reason === "RESOURCE_SHORTAGE" ? { id: "continue", label: "CONTINUAR" } : undefined,
       });
+      if (reason === "HOSTILE_MOB" || reason === "CREEPER") {
+        this.pushAlert({
+          kind: reason === "CREEPER" ? "CREEPER" : "HOSTILE_MOB",
+          title: reason === "CREEPER" ? "CREEPER DETECTADO" : "MOB HOSTIL DETECTADO",
+          body: message,
+        });
+      } else if (reason === "NIGHT") {
+        this.pushAlert({ kind: "NIGHT", title: "NOITE DETECTADA", body: message });
+      } else if (reason === "RESOURCE_SHORTAGE") {
+        this.pushAlert({ kind: "RESOURCES", title: "RECURSOS INSUFICIENTES", body: message });
+      } else if (reason === "EMERGENCY") {
+        this.pushAlert({ kind: "CRITICAL", title: "EMERGÊNCIA", body: message });
+      }
       this.hooks.onEvent?.("disconnected", { reason, message });
     } finally {
       this.disconnecting = false;

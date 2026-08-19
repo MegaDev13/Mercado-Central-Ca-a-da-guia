@@ -7,11 +7,15 @@ import type {
   EntitySnapshot,
   InventorySnapshot,
   ItemStack,
+  LookState,
+  PositionState,
   TimeSnapshot,
   Vec3,
+  VisibleBlock,
   WorldSnapshot,
 } from "../shared/types.ts";
 import { distance, vecKey } from "../shared/types.ts";
+import { PositionTracker } from "./PositionTracker.ts";
 import type { BreakResult, ClientEvents, IMinecraftClient, MoveResult, PlaceResult } from "./BedrockClient.ts";
 
 export interface SimulatedWorldOptions {
@@ -36,11 +40,14 @@ export class SimulatedClient implements IMinecraftClient {
   private selectedSlot = 0;
   private yaw = 0;
   private pitch = 0;
+  private readonly tracker: PositionTracker;
   private readonly bus = new EventEmitter();
   private entitySeq = 1;
 
   constructor(opts: SimulatedWorldOptions = {}) {
     this.position = opts.spawn ?? { x: 0, y: 64, z: 0 };
+    this.tracker = new PositionTracker(this.position);
+    this.tracker.acceptServer(this.position, "spawn");
     this.timeOfDay = opts.timeOfDay ?? 1000;
     this.items = opts.inventory ?? defaultInventory();
     this.seedFlatWorld();
@@ -58,6 +65,7 @@ export class SimulatedClient implements IMinecraftClient {
 
   async connect(): Promise<void> {
     this.connected = true;
+    this.tracker.acceptServer(this.position, "spawn");
     this.bus.emit("spawn");
   }
 
@@ -67,7 +75,34 @@ export class SimulatedClient implements IMinecraftClient {
   }
 
   getPosition(): Vec3 {
-    return { ...this.position };
+    return { ...this.tracker.predicted };
+  }
+
+  getLook(): LookState {
+    return { yaw: this.yaw, pitch: this.pitch };
+  }
+
+  getPositionState(): PositionState {
+    return this.tracker.snapshot();
+  }
+
+  resyncFromServer(): Vec3 {
+    const p = this.tracker.resync();
+    this.position = { ...p };
+    return p;
+  }
+
+  getVisibleBlocks(radius: number, limit = 4000): VisibleBlock[] {
+    const me = this.tracker.predicted;
+    const out: VisibleBlock[] = [];
+    for (const [key, id] of this.blocks) {
+      const [x, y, z] = key.split(",").map(Number);
+      if (Math.abs(x - me.x) > radius || Math.abs(z - me.z) > radius || Math.abs(y - me.y) > 12) continue;
+      if (id === "minecraft:air") continue;
+      out.push({ x, y, z, id });
+    }
+    out.sort((a, b) => Math.abs(a.x - me.x) + Math.abs(a.z - me.z) - (Math.abs(b.x - me.x) + Math.abs(b.z - me.z)));
+    return out.slice(0, limit);
   }
 
   getBlock(pos: Vec3): BlockSnapshot {
@@ -122,7 +157,16 @@ export class SimulatedClient implements IMinecraftClient {
       return { ok: false, path: [], reason: "no_footing" };
     }
     this.position = { ...next };
+    this.tracker.predict(next);
+    this.tracker.acceptServer(next, "protocol");
     return { ok: true, path: [next] };
+  }
+
+  /** Test hook: apply a server correction without changing prediction first. */
+  injectServerCorrection(pos: Vec3): void {
+    this.tracker.server = { ...pos };
+    this.tracker.source = "protocol";
+    this.tracker.updatedAt = Date.now();
   }
 
   async placeBlock(
@@ -205,8 +249,8 @@ export class SimulatedClient implements IMinecraftClient {
     return { path: "", note: "simulated client has no framebuffer" };
   }
 
-  async ping(): Promise<{ online: boolean; motd?: string; version?: string }> {
-    return { online: true, motd: "Simulated Bedrock world", version: "simulated" };
+  async ping(): Promise<{ online: boolean; motd?: string; version?: string; rttMs?: number }> {
+    return { online: true, motd: "Simulated Bedrock world", version: "simulated", rttMs: 4 };
   }
 
   injectEntity(partial: Omit<EntitySnapshot, "hostile" | "classification" | "distance" | "namespace" | "identifier"> & Partial<EntitySnapshot>): void {

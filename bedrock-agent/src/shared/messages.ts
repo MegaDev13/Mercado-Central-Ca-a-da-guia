@@ -1,16 +1,23 @@
 import { randomUUID } from "node:crypto";
 import { PROTOCOL_VERSION } from "./version.ts";
 import type {
+  ActionItem,
   AgentError,
   AgentStatus,
   Blueprint,
+  ConnectionMode,
+  ControlMode,
   DisconnectReason,
+  LookState,
   MaterialNeed,
   MissionState,
+  PositionState,
   ResourceHealth,
+  SupervisorAlert,
   ThreatLevel,
   UserMessage,
   Vec3,
+  XboxProfilePublic,
 } from "./types.ts";
 
 export type MessageType =
@@ -179,10 +186,24 @@ export interface DashboardSnapshot {
   resources: ResourceHealth;
   threat: ThreatLevel;
   position: Vec3 | null;
+  look: LookState | null;
+  positionState: PositionState | null;
+  timeLabel: string | null;
   messages: UserMessage[];
   lastDisconnect: DisconnectReason | null;
   lastError: AgentError | null;
   missionState: MissionState | null;
+  xbox: XboxProfilePublic;
+  connectionMode: ConnectionMode;
+  controlMode: ControlMode;
+  alerts: SupervisorAlert[];
+  logs: Array<{ ts: string; level: string; category: string; message: string }>;
+  actions: ActionItem[];
+  inventory: import("./types.ts").InventorySnapshot | null;
+  materials: MaterialNeed[];
+  stages: Array<{ id: string; name: string; status: string; progress: number }>;
+  latency: { minecraft: number | null; cloud: number | null };
+  sessionConflict: boolean;
 }
 
 type LinkStateLike = "ONLINE" | "OFFLINE" | "DEGRADED";

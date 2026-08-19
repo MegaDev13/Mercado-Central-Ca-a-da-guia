@@ -29,7 +29,9 @@ export type DisconnectReason =
   | "USER_REQUEST"
   | "SAFE_SHUTDOWN"
   | "CLOUD_LOST_AT_LIMIT"
-  | "ENVIRONMENTAL_HAZARD";
+  | "ENVIRONMENTAL_HAZARD"
+  | "EMERGENCY"
+  | "POSITION_DESYNC";
 
 export type Severity = "INFO" | "WARNING" | "RECOVERABLE_ERROR" | "CRITICAL_ERROR";
 
@@ -65,7 +67,8 @@ export type ProtocolName =
   | "PROTOCOL_ERROR_RECOVERY"
   | "PROTOCOL_BUILD_VALIDATION"
   | "PROTOCOL_PROGRESS_TRACKING"
-  | "PROTOCOL_MISSION_STATE";
+  | "PROTOCOL_MISSION_STATE"
+  | "PROTOCOL_POSITION";
 
 export interface BlockRef {
   namespace: string;
@@ -130,6 +133,73 @@ export interface WorldSnapshot {
   position: Vec3;
   nearbyEntities: EntitySnapshot[];
   sampleBlocks: BlockSnapshot[];
+}
+
+export interface LookState {
+  yaw: number;
+  pitch: number;
+}
+
+/** Client-local position. Never taken from HUD, /tp or showcoordinates. */
+export interface PositionState {
+  predicted: Vec3;
+  server: Vec3 | null;
+  source: "protocol" | "prediction" | "spawn" | "unknown";
+  desync: number;
+  desyncing: boolean;
+  updatedAt: number;
+}
+
+export interface VisibleBlock {
+  x: number;
+  y: number;
+  z: number;
+  id: string;
+}
+
+export interface ActionItem {
+  id: string;
+  name: string;
+  detail?: string;
+  at: string;
+}
+
+export interface SupervisorAlert {
+  id: string;
+  kind:
+    | "HOSTILE_MOB"
+    | "CREEPER"
+    | "NIGHT"
+    | "RESOURCES"
+    | "CONNECTION_LOSS"
+    | "REALM_UNAVAILABLE"
+    | "CRITICAL"
+    | "SESSION_CONFLICT"
+    | "POSITION_DESYNC";
+  title: string;
+  body: string;
+  createdAt: string;
+}
+
+export type ConnectionMode = "server" | "realm" | "simulated";
+export type ControlMode = "observe" | "agent" | "manual";
+
+export interface ConnectionTarget {
+  mode: ConnectionMode;
+  host: string;
+  port: number;
+  realmId: string;
+  realmInvite: string;
+  offline: boolean;
+}
+
+export interface XboxProfilePublic {
+  status: "unauthenticated" | "pending" | "authenticated";
+  gamertag: string | null;
+  xuid: string | null;
+  verificationUri: string | null;
+  userCode: string | null;
+  message: string | null;
 }
 
 export interface MaterialNeed {

@@ -50,6 +50,8 @@ export class AgentGateway {
   private stopped = false;
   connected = false;
   authenticated = false;
+  lastRttMs: number | null = null;
+  private heartbeatSentAt = 0;
 
   constructor(
     private readonly config: AgentConfig,
@@ -201,6 +203,7 @@ export class AgentGateway {
         break;
       case "heartbeat":
       case "heartbeat_ack":
+        if (this.heartbeatSentAt) this.lastRttMs = Date.now() - this.heartbeatSentAt;
         break;
       case "ack":
         this.pending.delete((env.payload as { id?: string })?.id ?? env.ackOf ?? "");

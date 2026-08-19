@@ -12,8 +12,11 @@ import type {
   EntitySnapshot,
   InventorySnapshot,
   ItemStack,
+  LookState,
+  PositionState,
   TimeSnapshot,
   Vec3,
+  VisibleBlock,
   WorldSnapshot,
 } from "../shared/types.ts";
 import { snapshotBlock } from "../shared/whitelist.ts";
@@ -32,6 +35,25 @@ export class InputFallbackClient implements IMinecraftClient {
   }
   getPosition(): Vec3 {
     return { x: 0, y: 0, z: 0 };
+  }
+  getLook(): LookState {
+    return { yaw: 0, pitch: 0 };
+  }
+  getPositionState(): PositionState {
+    return {
+      predicted: { x: 0, y: 0, z: 0 },
+      server: null,
+      source: "unknown",
+      desync: 0,
+      desyncing: false,
+      updatedAt: 0,
+    };
+  }
+  getVisibleBlocks(): VisibleBlock[] {
+    return [];
+  }
+  resyncFromServer(): Vec3 {
+    return this.getPosition();
   }
   getBlock(pos: Vec3): BlockSnapshot {
     return snapshotBlock("minecraft:air", pos);

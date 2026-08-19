@@ -144,6 +144,7 @@ export class ProtocolBuilding implements Protocol {
   readonly name = "PROTOCOL_BUILDING" as const;
   readonly priority = PRIORITY.BUILDING;
   wantsControl(ctx: ExecutorContext): boolean {
+    if (ctx.userOverride || ctx.mission.status === "PAUSED") return false;
     return ctx.mission.status === "BUILDING" && !!ctx.blueprint && ctx.client.connected;
   }
   async tick(ctx: ExecutorContext): Promise<ProtocolAction> {
@@ -297,8 +298,12 @@ async function walkTo(ctx: ExecutorContext, dest: Vec3): Promise<boolean> {
   if (from.x === goal.x && from.y === goal.y && from.z === goal.z) return true;
   const manhattan = Math.abs(from.x - goal.x) + Math.abs(from.z - goal.z);
   if (manhattan <= 2) {
+    ctx.pushAction("Move To", `${goal.x},${goal.y},${goal.z}`);
     const step = await ctx.client.moveStep(goal);
-    if (step.ok) return true;
+    if (step.ok) {
+      ctx.lastPath = [from, goal];
+      return true;
+    }
   }
   const result = findPath(lookup, { from, to: goal, maxIter: 1200 });
   if (!result.ok) {
@@ -311,6 +316,8 @@ async function walkTo(ctx: ExecutorContext, dest: Vec3): Promise<boolean> {
 }
 
 async function follow(ctx: ExecutorContext, path: Vec3[]): Promise<boolean> {
+  ctx.lastPath = path;
+  ctx.pushAction("Move", `${path.length} steps`);
   for (const step of path.slice(1)) {
     const r = await ctx.client.moveStep(step);
     if (!r.ok) return false;

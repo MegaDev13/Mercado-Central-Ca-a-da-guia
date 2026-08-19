@@ -4,8 +4,11 @@ import type {
   EntitySnapshot,
   InventorySnapshot,
   ItemStack,
+  LookState,
+  PositionState,
   TimeSnapshot,
   Vec3,
+  VisibleBlock,
   WorldSnapshot,
 } from "../shared/types.ts";
 
@@ -40,6 +43,10 @@ export interface IMinecraftClient {
   connect(): Promise<void>;
   disconnect(reason: DisconnectReason): Promise<void>;
   getPosition(): Vec3;
+  getLook(): LookState;
+  getPositionState(): PositionState;
+  resyncFromServer(): Vec3;
+  getVisibleBlocks(radius: number, limit?: number): VisibleBlock[];
   getBlock(pos: Vec3): BlockSnapshot;
   getInventory(): InventorySnapshot;
   setSelectedSlot(slot: number): void;

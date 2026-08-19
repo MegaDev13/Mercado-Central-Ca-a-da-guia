@@ -28,11 +28,18 @@ export interface LogRecord {
 }
 
 export class Logger {
+  private readonly ring: LogRecord[] = [];
+
   constructor(
     private readonly filePath: string,
     private readonly alsoConsole = true,
+    private readonly ringSize = 250,
   ) {
     mkdirSync(dirname(filePath), { recursive: true });
+  }
+
+  recent(limit = 80): LogRecord[] {
+    return this.ring.slice(-limit);
   }
 
   write(level: LogRecord["level"], category: LogCategory, message: string, data?: Record<string, unknown>): void {
@@ -43,6 +50,8 @@ export class Logger {
       message,
       data,
     };
+    this.ring.push(rec);
+    if (this.ring.length > this.ringSize) this.ring.splice(0, this.ring.length - this.ringSize);
     const line = JSON.stringify(rec);
     try {
       appendFileSync(this.filePath, line + "\n", "utf8");

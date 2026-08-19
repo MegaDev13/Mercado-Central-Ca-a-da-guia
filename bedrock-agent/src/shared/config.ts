@@ -32,7 +32,9 @@ export interface AgentConfig {
   mcOffline: boolean;
   mcVersion: string;
   mcRealmId: string;
+  mcRealmInvite: string;
   mcClient: "simulated" | "protocol";
+  profilesDir: string;
   allowNight: boolean;
   allowHostile: boolean;
   safeDayStart: number;
@@ -56,7 +58,9 @@ export function loadConfig(cwd = process.cwd()): AgentConfig {
     mcOffline: envBool("MC_OFFLINE", true),
     mcVersion: env("MC_VERSION", ""),
     mcRealmId: env("MC_REALM_ID", ""),
+    mcRealmInvite: env("MC_REALM_INVITE", ""),
     mcClient: env("MC_CLIENT", "simulated") === "protocol" ? "protocol" : "simulated",
+    profilesDir: resolve(cwd, env("PROFILES_DIR", env("DATA_DIR", "./data") + "/profiles")),
     allowNight: envBool("ALLOW_NIGHT", false),
     allowHostile: envBool("ALLOW_HOSTILE", false),
     safeDayStart: envInt("SAFE_DAY_START", 0),

@@ -4,6 +4,7 @@ data/logs/
 data/missions/
 data/blueprints/
 data/holoprint/
+data/profiles/
 *.tmp
 .env
 .env.local

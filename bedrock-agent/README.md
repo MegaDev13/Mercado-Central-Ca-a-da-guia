@@ -38,7 +38,16 @@ npm test
 npm run dev
 ```
 
-Painel: `http://127.0.0.1:8788`  
+Supervisor (visão 3D + auth + servidor/Realm): `http://127.0.0.1:8788`  
 Planner WS: `ws://127.0.0.1:8787`
 
-Detalhes em `docs/TESTING.md` e `docs/ARCHITECTURE.md`.
+A posição do jogador vem **somente** do protocolo do cliente. O agente não usa `/tp`, `/gamerule` nem `showcoordinates`.
+
+Cliente real + Xbox:
+
+```bash
+npm i bedrock-protocol prismarine-auth prismarine-realms
+MC_CLIENT=protocol MC_OFFLINE=false npm run agent
+```
+
+Detalhes: `docs/TESTING.md`, `docs/ARCHITECTURE.md`, `docs/SUPERVISOR.md`.
