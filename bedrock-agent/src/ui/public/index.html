@@ -89,10 +89,11 @@
 
       <main class="stage">
         <div id="viewport"></div>
+        <div id="view-empty">Carregando visão do agente…</div>
         <div class="hud">
           <div class="row">
-            <button id="cam-fp" class="on">First Person</button>
-            <button id="cam-tp">Third Person</button>
+            <button id="cam-fp">First Person</button>
+            <button id="cam-tp" class="on">Third Person</button>
             <button id="cam-orbit">Órbita</button>
             <button id="tog-debug">Debug</button>
             <button id="tog-bp">Mostrar blueprint</button>
@@ -137,14 +138,6 @@
         </section>
       </aside>
     </div>
-    <script type="importmap">
-      {
-        "imports": {
-          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
-        }
-      }
-    </script>
-    <script type="module" src="/viewer.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>
