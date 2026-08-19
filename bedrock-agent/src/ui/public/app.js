@@ -20,7 +20,9 @@ function render(s) {
   $("xbox-profile").textContent = s.xbox.gamertag
     ? `Gamertag: ${s.xbox.gamertag}${s.xbox.xuid ? " · Xbox ID: " + s.xbox.xuid : ""}`
     : "Gamertag —";
-  $("xbox-code").textContent = s.xbox.userCode ? `${s.xbox.verificationUri}  código ${s.xbox.userCode}` : "";
+  $("xbox-code").textContent = s.xbox.userCode
+    ? `${s.xbox.verificationUri}  código ${s.xbox.userCode}`
+    : s.xbox.message ?? "";
   $("mission").textContent = s.mission ?? "—";
   $("stage").textContent = s.stage ?? "—";
   $("progress").textContent = s.progress ?? 0;

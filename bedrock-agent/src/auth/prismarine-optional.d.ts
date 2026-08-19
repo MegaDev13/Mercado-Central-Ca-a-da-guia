@@ -1,4 +1,5 @@
 declare module "prismarine-auth" {
+  export const Titles: { MinecraftNintendoSwitch: string };
   export class Authflow {
     constructor(
       username?: string,

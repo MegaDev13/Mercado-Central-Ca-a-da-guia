@@ -123,6 +123,9 @@ export class ProtocolClient implements IMinecraftClient {
       opts.port = d.port;
     }
     if (!d.offline) {
+      opts.authTitle = "00000000441cc96b";
+      opts.deviceType = "Nintendo";
+      opts.flow = "live";
       opts.onMsaCode = (data: { user_code?: string; verification_uri?: string; message?: string }) => {
         this.onMsaCode?.(data);
         this.bus.emit("chat", "auth", data.message ?? `Xbox: ${data.verification_uri} code ${data.user_code}`);

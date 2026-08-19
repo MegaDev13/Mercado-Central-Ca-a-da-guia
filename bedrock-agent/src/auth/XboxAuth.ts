@@ -66,6 +66,7 @@ export class XboxAuth {
       .catch((err) => {
         this.status = "unauthenticated";
         this.lastError = err instanceof Error ? err.message : String(err);
+        this.message = this.lastError;
         this.log.error("security", "xbox auth failed", { err: this.lastError });
       })
       .finally(() => {
@@ -77,14 +78,21 @@ export class XboxAuth {
   private async runFlow(): Promise<void> {
     try {
       const auth = await import("prismarine-auth");
+      const Titles = (auth as { Titles?: Record<string, string> }).Titles;
       const Authflow = (auth as { Authflow: new (...args: unknown[]) => AuthflowLike }).Authflow;
-      const flow = new Authflow(this.username, this.profilesDir, { flow: "live" }, (res: DeviceCode) => {
-        this.verificationUri = res.verification_uri ?? "https://www.microsoft.com/link";
-        this.userCode = res.user_code ?? null;
-        this.message = res.message ?? `Abra ${this.verificationUri} e informe o código ${this.userCode}`;
-        this.status = "pending";
-        this.log.info("security", "xbox device code issued — code is only shown, never stored as a credential");
-      });
+      const flow = new Authflow(
+        this.username,
+        this.profilesDir,
+        liveFlowOptions(Titles),
+        (res: DeviceCode) => {
+          this.verificationUri = res.verification_uri ?? "https://www.microsoft.com/link";
+          this.userCode = res.user_code ?? null;
+          this.message = res.message ?? `Abra ${this.verificationUri} e informe o código ${this.userCode}`;
+          this.status = "pending";
+          writeLoginNote(this.verificationUri, this.userCode);
+          this.log.info("security", "xbox device code issued — code is only shown, never stored as a credential");
+        },
+      );
       const xbl = await flow.getXboxToken();
       this.gamertag = String(xbl.userXUID ? xbl.displayName ?? this.username : this.username);
       this.xuid = xbl.userXUID ? String(xbl.userXUID) : null;
@@ -113,7 +121,8 @@ export class XboxAuth {
       const realms = await import("prismarine-realms");
       const Authflow = (auth as { Authflow: new (...args: unknown[]) => AuthflowLike }).Authflow;
       const RealmAPI = (realms as { RealmAPI: { from: (flow: unknown, kind: string) => RealmApiLike } }).RealmAPI;
-      const flow = new Authflow(this.username, this.profilesDir, { flow: "live" });
+      const Titles = (auth as { Titles?: Record<string, string> }).Titles;
+      const flow = new Authflow(this.username, this.profilesDir, liveFlowOptions(Titles));
       const api = RealmAPI.from(flow, "bedrock");
       const list = await api.getRealms();
       return list.map((r) => ({
@@ -176,6 +185,47 @@ interface DeviceCode {
 
 interface AuthflowLike {
   getXboxToken(): Promise<{ userXUID?: string; displayName?: string }>;
+}
+
+/** Official Bedrock device-code title used by bedrock-protocol. */
+export const BEDROCK_AUTH_TITLE = "00000000441cc96b";
+
+export function liveFlowOptions(titles?: Record<string, string>): {
+  flow: "live";
+  authTitle: string;
+  deviceType: string;
+} {
+  return {
+    flow: "live",
+    authTitle: titles?.MinecraftNintendoSwitch ?? BEDROCK_AUTH_TITLE,
+    deviceType: "Nintendo",
+  };
+}
+
+function writeLoginNote(uri: string | null, code: string | null): void {
+  try {
+    writeFileSync(
+      join(process.cwd(), "XBOX_LOGIN.txt"),
+      [
+        "========================================",
+        "LOGIN MICROSOFT / XBOX — AÇÃO DO USUÁRIO",
+        "========================================",
+        "",
+        "1. Abra no navegador:",
+        `   ${uri ?? "https://www.microsoft.com/link"}`,
+        "2. Digite o código:",
+        `   ${code ?? "(aguardando)"}`,
+        "3. Autorize o app.",
+        "4. Avise no chat: pronto.",
+        "",
+        "NÃO envie senha.",
+        "NÃO envie o código de volta depois de usar.",
+        "",
+      ].join("\n"),
+    );
+  } catch {
+    /* UI already shows the code */
+  }
 }
 
 interface RealmApiLike {
