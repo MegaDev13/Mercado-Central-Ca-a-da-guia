@@ -1,0 +1,9 @@
+node_modules/
+dist/
+data/logs/
+data/missions/
+data/blueprints/
+data/holoprint/
+*.tmp
+.env
+.env.local

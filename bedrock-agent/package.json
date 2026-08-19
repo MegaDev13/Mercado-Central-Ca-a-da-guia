@@ -1,0 +1,31 @@
+{
+  "name": "bedrock-autonomous-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous Minecraft Bedrock player: cloud high-level planner + local real-time executor.",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "agent": "tsx src/index.ts",
+    "cloud": "tsx src/cloud.ts",
+    "dev": "tsx src/dev.ts",
+    "test": "tsx --test tests/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "holoprint": "tsx src/cli-holoprint.ts"
+  },
+  "dependencies": {
+    "prismarine-nbt": "^2.7.0",
+    "ws": "^8.18.3"
+  },
+  "optionalDependencies": {
+    "bedrock-protocol": "^3.49.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}

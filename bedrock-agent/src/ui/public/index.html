@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Agente Bedrock — Painel Local</title>
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="eyebrow">Executor local · planejamento na nuvem</p>
+        <h1>Agente Autônomo Bedrock</h1>
+      </div>
+      <div class="links">
+        <span class="pill" id="tick">ao vivo</span>
+      </div>
+    </header>
+
+    <section class="grid status-grid">
+      <article class="card"><h2>Agente</h2><p class="value" id="agent">OFFLINE</p></article>
+      <article class="card"><h2>Nuvem</h2><p class="value" id="cloud">OFFLINE</p></article>
+      <article class="card"><h2>Servidor</h2><p class="value" id="server">OFFLINE</p></article>
+      <article class="card"><h2>Jogador</h2><p class="value" id="player">OFFLINE</p></article>
+    </section>
+
+    <section class="grid mission-grid">
+      <article class="card wide">
+        <h2>Missão</h2>
+        <p class="mission-name" id="mission">—</p>
+        <p class="muted">Etapa <strong id="stage">—</strong></p>
+        <div class="bar"><span id="bar"></span></div>
+        <p class="muted"><span id="progress">0</span>%</p>
+      </article>
+      <article class="card">
+        <h2>Status</h2>
+        <p class="value" id="status">IDLE</p>
+        <p class="muted">Recursos <strong id="resources">UNKNOWN</strong></p>
+        <p class="muted">Ameaça <strong id="threat">SAFE</strong></p>
+      </article>
+      <article class="card">
+        <h2>Posição</h2>
+        <p class="mono" id="position">—</p>
+        <p class="muted" id="disconnect">Última saída: —</p>
+      </article>
+    </section>
+
+    <section class="grid work-grid">
+      <article class="card">
+        <h2>Pedido à IA</h2>
+        <p class="muted">A IA planeja. O executor local constrói sozinho.</p>
+        <textarea id="intent" rows="3">Construa uma casa de stone bricks</textarea>
+        <div class="row">
+          <button id="btn-plan" class="primary">Planejar</button>
+          <button id="btn-start">Iniciar construção</button>
+          <button id="btn-pause">Pausar</button>
+          <button id="btn-resume">Retomar</button>
+          <button id="btn-continue" class="accent">Continuar (recursos)</button>
+        </div>
+      </article>
+      <article class="card">
+        <h2>Simular mundo</h2>
+        <p class="muted">Testes locais sem servidor Bedrock.</p>
+        <div class="row">
+          <button id="btn-creeper" class="danger">Injetar Creeper</button>
+          <button id="btn-zombie">Injetar Zumbi</button>
+          <button id="btn-night">Anoitecer</button>
+          <button id="btn-day">Amanhecer</button>
+          <button id="btn-dc">Desconectar</button>
+        </div>
+      </article>
+    </section>
+
+    <section class="card messages">
+      <h2>Mensagens da IA / do agente</h2>
+      <div id="messages"></div>
+    </section>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

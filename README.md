@@ -1,5 +1,9 @@
 # Companhia Mercante Ravenport — Livro Contábil RPG Medieval
 
+> **Novo:** o jogador autônomo de Minecraft Bedrock (planner na nuvem + executor local) está em [`bedrock-agent/`](./bedrock-agent/README.md).
+
+---
+
 Sistema web completo inspirado em Game of Thrones, qualidade ERP profissional, visual medieval imersivo, porém usabilidade moderna (Notion/Linear/Jira).
 
 > Tema escuro padrão, claro opcional. Tipografia Cinzel + Inter. Ícones lucide, sem emojis na interface. Animações discretas (page-turn, wax-stamp, glow).
